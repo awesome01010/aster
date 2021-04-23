@@ -89,7 +89,7 @@ class ResNet(nn.Module):
         return x
 
 def test():
-    x = torch.randn(1,3,32,100)
+    x = torch.randn(64,3,32,100)
     model = ResNet()
     y = model(x)
     print(y.size())

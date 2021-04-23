@@ -3,6 +3,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 from model.ResNet import ResNet
+from model.se_resnet import se_resnet50
 from model.STN import STN
 import ipdb
 
@@ -35,8 +36,8 @@ class BiRNN(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self,lstm_input_size=512,hidden_size=256,num_layers=1,bidirectional=True,use_stn=False):
-        super(Encoder,self).__init__()
+    def __init__(self,lstm_input_size=512, hidden_size=256, num_layers=1, bidirectional=True,use_stn=False):
+        super(Encoder,self).__init__()   #这里lstm_input_size由512改为2048
         if use_stn:
             print('Create model with STN')
             # self.features = nn.Sequential(STN(output_img_size=[32,100],num_control_points=20,margins=[0.1,0.1]),
@@ -45,7 +46,8 @@ class Encoder(nn.Module):
         else:
             print('Create model without STN')
         self.use_stn = use_stn
-        self.features = ResNet()
+        self.features = ResNet()            # 1804配置
+        # self.features = se_resnet50()     # 1806配置
         self.lstm = nn.LSTM(
             input_size=lstm_input_size,
             hidden_size=hidden_size,
@@ -58,15 +60,16 @@ class Encoder(nn.Module):
     def forward(self,x):
         recitified = None
         if self.use_stn:
+            # print("fuck")
             x = self.stn(x)
             recitified = x
-        # print(x.size())
+        # print("1", x.size())
         x = self.features(x)    # [B,C,H,W]
-        # print(x.size())
+        # print("2", x.size())
         x = x.view(x.size(0),x.size(1),-1)
-        # print(x.size())
+        # print("3", x.size())
         x = x.permute(0,2,1)    #[batch,t,channels]
-        # print(x.size())
+        # print("4", x.size())
         x, state = self.lstm(x)
         # print("x:", x.size())
         # print(len(state))

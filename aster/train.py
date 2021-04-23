@@ -14,6 +14,7 @@ from model.seq2seq import Encoder, AttentionDecoder
 from model_utils import batch_train, batch_test
 from loss import SequenceCrossEntropyLoss
 from tensorboardX import SummaryWriter
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'   # 1804
 
 converter = strLabelConverter()
 
@@ -48,28 +49,36 @@ def main(args):
     input_size = [64, 256] if args.use_stn else [32, 64]
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    # randomAffine = transforms.RandomAffine(10)
+    randomAffine = transforms.RandomAffine(10)
     # random_perspective = transforms.RandomPerspective(distortion_scale=0.5, p=0.5, interpolation=3)
     # color_jitter = transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0)
     # random_rotation = transforms.RandomRotation(5, resample=False, expand=False, center=None)
-    # train_trsf = transforms.Compose([Pad, randomAffine, transforms.ToTensor(), normalize])
+    train_trsf = transforms.Compose([randomAffine, transforms.ToTensor(), normalize])
     # train_trsf = transforms.Compose([randomAffine, random_perspective, color_jitter, transforms.ToTensor(), normalize])
-    train_trsf = transforms.Compose([transforms.ToTensor(), normalize])
+    # train_trsf = transforms.Compose([transforms.ToTensor(), normalize])
 
     train_loader = get_dataloader(args.training_data, input_size, train_trsf, args.batch_size)
     # train_loader = get_multi_dataloader(args.training_data, train_trsf, args.batch_size)
     test_trsf = transforms.Compose([transforms.ToTensor(), normalize])
     test_loader = get_dataloader(args.test_data, input_size, test_trsf, args.batch_size, is_train=False)
 
+# 1806 单卡
     encoder = Encoder(use_stn=args.use_stn).cuda()
-    decoder = AttentionDecoder(hidden_dim=256, attention_dim=256, y_dim=converter.num_class, 
+    decoder = AttentionDecoder(hidden_dim=256, attention_dim=256, y_dim=converter.num_class,
                 encoder_output_dim=512).cuda() # output_size for classes_num
+
+# 1804 多卡
+#     encoder = nn.DataParallel(Encoder(use_stn=args.use_stn))
+#     encoder = encoder.cuda()
+#     decoder = nn.DataParallel(AttentionDecoder(hidden_dim=256, attention_dim=256, y_dim=converter.num_class,
+#                 encoder_output_dim=512))
+#     decoder = decoder.cuda()
 
     encoder_optimizer = optim.Adadelta(encoder.parameters(),lr=args.lr)
     decoder_optimizer = optim.Adadelta(decoder.parameters(),lr=args.lr)
     optimizers = [encoder_optimizer, decoder_optimizer]
     # lr_step = [200000, 300000, 400000]
-    lr_step = [3000000, 4000000, 5000000, 6000000, 7000000, 8000000]
+    lr_step = [1650010, 2300000, 5000000, 6000000, 7000000, 8000000]
     encoder_scheduler = optim.lr_scheduler.MultiStepLR(encoder_optimizer, lr_step, gamma=0.1)
     decoder_scheduler = optim.lr_scheduler.MultiStepLR(decoder_optimizer, lr_step, gamma=0.1)
     criterion = SequenceCrossEntropyLoss()
@@ -144,12 +153,20 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch ASTER')
-    parser.add_argument('--training_data', type=str,
-                        default="/workspace/xwh/aster/train/ctw/workspace/xqq/ctw-baseline/data/all_images/lmdb_train3")
-    parser.add_argument('--test_data', type=str, default="/workspace/xwh/aster/train/ctw/workspace/xqq/ctw-baseline/data/all_images/lmdb_val3")
+    # parser.add_argument('--training_data', type=str,
+    #                     default="/workspace/xwh/aster/train/ctw/workspace/xqq/ctw-baseline/data/all_images/lmdb_train3")
+    # parser.add_argument('--test_data', type=str, default="/workspace/xwh/aster/train/ctw/workspace/xqq/ctw-baseline/data/all_images/lmdb_val3")
     # parser.add_argument('--training_data', type=str,
     #                     default="/workspace/xwh/aster/train/val/lmdb")
     # parser.add_argument('--test_data', type=str, default="/workspace/xwh/aster/train/val/lmdb")
+
+# 这是1806配置
+    parser.add_argument('--training_data', type=str, default="/workspace/xwh/aster/train/4datasets_train/lmdb")
+    parser.add_argument('--test_data', type=str, default="/workspace/xwh/aster/train/val/lmdb")
+
+# 这是1804配置
+#     parser.add_argument('--training_data', type=str, default="/workspace/xwh/datasets/4datasets/train/lmdb")
+#     parser.add_argument('--test_data', type=str, default="/workspace/xwh/datasets/4datasets/val/lmdb")
 
     parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 32)')
@@ -159,7 +176,7 @@ if __name__ == '__main__':
                         help='SGD momentum (default: 0.9)')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=200, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save_interval',type=int,default=1000,metavar='N',
                         help='how many steps to wait before saving model parmas')
